@@ -6,6 +6,8 @@
 
 #include "IOManager.h"
 
+#include <TurnoutManager.h>
+
 //static const std::string mqttUser = "papa";
 //static const std::string mqttPassword = "papa";
 static const std::string mqttTopicIn = "Aig/Cde";// si Click sur Aig, demande de changement position  et Topic Pub " Aig/cde" mess un nombre
@@ -33,7 +35,9 @@ static void callback(const char *iTopic, const byte *iPayload, const uint32_t iL
 	Serial.print(" // '");
 	Serial.print(Payload);
 	Serial.println("'");
-	if (Topic == "Aig/Cde") {
+	if (Topic == "Aig/Cmd/1") {
+		TurnoutManager::get().m_turnout[1].receiveMessage(Payload.c_str());
+		/// on attent un mmessage de la forme "<aig_id>;<state>;<pending>"
 		/*
 		 * oulà, j'ai pas bien compris ton décodage de payload je crains un bug!!
 		 *
@@ -50,7 +54,7 @@ static void callback(const char *iTopic, const byte *iPayload, const uint32_t iL
 				Serial.println(id);
 			}
 		}
-		if (id >= 0u && id < 16u) {
+		if (id >= 0 && id < 16) {
 			//if (Payload.equalsIgnoreCase("on"))
 			IOManager::get().setLEDState(static_cast<int8_t>(id), true);
 		} else if (Payload.equalsIgnoreCase("off")) {
@@ -85,7 +89,7 @@ void MqttManager::connect() {
 			mqttClient.subscribe(mqttTopicIn.c_str());
 			Serial.print("subscribed to ");
 			Serial.println(mqttTopicIn.c_str());
-			senMessage("TopicESP/Welcome", "hello");
+			sendMessage("TopicESP/Welcome", "hello");
 		} else {
 			Serial.print("failed, rc=");
 			Serial.print(mqttClient.state());
@@ -99,7 +103,7 @@ void MqttManager::connect() {
 	}
 }
 
-void MqttManager::senMessage(const std::string &iTopic, const std::string &iPayload) {
+void MqttManager::sendMessage(const std::string &iTopic, const std::string &iPayload) {
 	Serial.print("  Sending Message: ");
 	Serial.print(iTopic.c_str());
 	Serial.print(" // ");

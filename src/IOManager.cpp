@@ -125,7 +125,7 @@ void IOManager::setLEDState(const int8_t iId, const bool iOn) {
 		Serial.println(iId);
 		delay(5);
 
-		byte input2[16];
+		uint8_t input2[16];
 		Serial.print("  lecture position on mcp2:  ");
 		for (int i = 0; i < 16; i++) {
 			input2[i] = mcp2.digitalRead(i);
@@ -146,11 +146,11 @@ void IOManager::setLEDState(const int8_t iId, const bool iOn) {
 		Serial.print(payload.c_str());
 
 		if (input2[iId] == 1) {
-			Serial.print(" topic: ");
-			Serial.print(m_topic.c_str());
-			Serial.print(" mess_sub: ");
-			Serial.println(payload.c_str());
-			MqttManager::get().senMessage(m_topic, payload);
+			std::string msg = " topic: " + m_topic + " mess_sub: " + payload;
+			Serial.println(msg.c_str());
+			auto &mmgr = MqttManager::get();
+			mmgr.sendMessage("debug", msg);
+			mmgr.sendMessage(m_topic, payload);
 		} else {
 			Serial.print(" wrong etat Aig: ");
 			Serial.println(input2[iId]);

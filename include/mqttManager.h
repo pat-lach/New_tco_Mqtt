@@ -21,7 +21,7 @@ public:
 	 * @param iTopic Topic of the message.
 	 * @param iPayload Content of the message.
 	 */
-	void senMessage(const std::string &iTopic, const std::string &iPayload);
+	void sendMessage(const std::string &iTopic, const std::string &iPayload);
 
 	/**
 	 * @brief Singleton access.

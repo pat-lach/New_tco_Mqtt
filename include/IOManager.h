@@ -3,17 +3,12 @@
 #pragma once
 
 #include <Arduino.h>
-
-class MqttManager;
+#include <string>
 /**
  * @brief class managing the IO.
  */
 class IOManager {
 public:
-	/**
-	 * @brief Constructor.
-	 */
-	IOManager();
 	/**
 	 * @brief Initialization function.
 	 */
@@ -22,40 +17,50 @@ public:
 	 * @brief Frame function.
 	 */
 	void loop();
+
 	/**
-	 * @brief Attach a messaging system
-	 * @param mngr The new messaging system
+	 * @brief
+	 * @param iTopic
+	 * @param iPayload
 	 */
-	void attachMqttManager(MqttManager *mngr = nullptr);
-	void senMessage(String topic, String Payload);
+	void senMessage(std::string iTopic, std::string iPayload);
 
 	/**
 	 * @brief Defines the LED State.
-	 * @param on If the LED should be on.
+	 * @param iId If the id of the LED.
+	 * @param iOn If the LED should be on.
 	 */
-	void setLEDState(int8_t Id, bool on, String topic_sub, String Payload_sub);
+	void setLEDState(int8_t iId, bool iOn);
+
+	/**
+	 * @brief Singleton access.
+	 * @return Reference to the instance.
+	 */
+	static IOManager &get() {
+		static IOManager instance;
+		return instance;
+	}
 
 private:
-	/// The MqttManager
-	MqttManager *mqttManager = nullptr;
-	/// The pin to read
-	//uint8_t PinRead = D6;
-	/// The LED pin
-	
-	
+	/**
+	 * @brief Constructor.
+	 */
+	IOManager();
 	///  The last state of the switch
-	bool switchState = false;
+	bool m_switchState = false;
 	///  pour mise au point
-	int iNb = 0;
-	int iEtatMemPB = HIGH;
-	uint64_t pulseStop = 0;
+	int m_Nb = 0;
+	int m_EtatMemPB = HIGH;
+	uint64_t m_pulseStop = 0;
 
-	int8_t timing = -1;
+	int8_t m_timing = -1;
+
 	struct EtatP {
 		bool memoire = false;
 		bool release = true;
 	};
-	EtatP MesEtats[16];
-	String topic_sub ="Aig/Pos";
-	String Payload = "0";
+
+	EtatP m_MesEtats[16];
+	std::string m_topic = "Aig/Pos";
+	std::string m_payload = "0";
 };

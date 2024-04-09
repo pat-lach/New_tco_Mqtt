@@ -1,47 +1,48 @@
 // Created by damien on 08/10/23.
 //
 #pragma once
-
-#include "IOManager.h"
 #include <PubSubClient.h>
 #include <WiFiClient.h>
+#include <string>
 
 class MqttManager {
 public:
 	/**
-     * @brief Constructor.
-     */
-	MqttManager();
-	/**
-     * @brief Initialization function.
-     */
+	 * @brief Initialization function.
+	 */
 	void setup();
 	/**
-     * @brief Frame function.
-     */
+	 * @brief Frame function.
+	 */
 	void loop();
-	/**
-     * @brief Send a message to the broker.
-     * @param topic Topic of the message.
-     * @param Payload Content of the message.
-     */
-	void senMessage(String topic, String Payload);
 
 	/**
-     * @brief Attach a new IO Manager.
-     * @param mngr The new IO Manager.
-     */
-	void attachIOManager(IOManager *mngr = nullptr);
+	 * @brief Send a message to the broker.
+	 * @param iTopic Topic of the message.
+	 * @param iPayload Content of the message.
+	 */
+	void senMessage(const std::string &iTopic, const std::string &iPayload);
+
+	/**
+	 * @brief Singleton access.
+	 * @return Reference to the instance.
+	 */
+	static MqttManager &get() {
+		static MqttManager instance;
+		return instance;
+	}
 
 private:
 	/// Client Wifi.
 	WiFiClient wifiClient;
 	/// Client MQTT.
 	PubSubClient mqttClient;
-	/// IO Manager.
-	IOManager *ioManager = nullptr;
 	/**
-     * @brief Connect to the broker.
-     */
+	 * @brief Constructor.
+	 */
+	MqttManager();
+	/**
+	 * @brief Connect to the broker.
+	 */
 	void connect();
 };

@@ -4,9 +4,7 @@
 
 #pragma once
 
-#include <ESP8266WiFi.h>
 #include <NTPClient.h>
-#include <PubSubClient.h>
 #include <WiFiUdp.h>
 
 /**
@@ -15,19 +13,28 @@
 class WifiManager {
 public:
 	/**
-     * @brief Constructor
-     */
-	WifiManager();
-	/**
-     * @brief Initialization function.
-     */
+	 * @brief Initialization function.
+	 */
 	void setup();
 	/**
-     * @brief Frame function;
-     */
+	 * @brief Frame function;
+	 */
 	void loop();
 
+	/**
+	 * @brief Singleton access.
+	 * @return Reference to the instance.
+	 */
+	static WifiManager &get() {
+		static WifiManager instance;
+		return instance;
+	}
+
 private:
+	/**
+	 * @brief Constructor
+	 */
+	WifiManager();
 	/// UDP connection.
 	WiFiUDP ntpUDP;
 	/// Network time.
@@ -35,5 +42,5 @@ private:
 	/**
 	 * @brief check and eventually reconnect the wifi.
 	 */
-	void checkWifiConnexion();
+	static void checkWifiConnexion();
 };

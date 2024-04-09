@@ -16,40 +16,36 @@ Adafruit_MCP23X17 mcp2;// Adafruit_MCP23X17 mcp2;
 
 IOManager::IOManager() = default;
 
+constexpr char PosBobine[] = {11, 12, 21, 22, 31, 32, 33, 34, 41, 42, 51, 52, 61, 62, 63, 64};
+
 void IOManager::setup() {
-	switchState = false;// all Switch off
+	m_switchState = false;// all Switch off
 
 	Wire.begin(4, 5);// SDA d2 GPIO4, SCL d1 GPIO5, esp8266...Start I2C communication
 
 	/****************************************/
 	//          I2C Scanner
 	/********************************************************************/
-	byte error, address;
-	int nDevices;
+	int nDevices = 0;
 	Serial.println("Scanning...");
-	nDevices = 0;
-	for (address = 1; address < 127; address++) {
+	for (byte address = 1; address < 127; address++) {
 		// The i2c_scanner uses the return value of
 		// the Write.endTransmisstion to see if
 		// a device did acknowledge to the address.
 		Wire.beginTransmission(address);
-		error = Wire.endTransmission();
-		if (error == 0) {
+		if (const uint8_t error = Wire.endTransmission(); error == 0) {
 			Serial.print("I2C device found at address 0x");
-			if (address < 16)
-				Serial.print("0");
+			if (address < 16) Serial.print("0");
 			Serial.print(address, HEX);
 			Serial.println("  !");
 			nDevices++;
 		} else if (error == 4) {
 			Serial.print("Unknown error at address 0x");
-			if (address < 16)
-				Serial.print("0");
+			if (address < 16) Serial.print("0");
 			Serial.println(address, HEX);
 		}
 	}
-	if (nDevices == 0)
-		Serial.println("No I2C devices found\n");
+	if (nDevices == 0) Serial.println("No I2C devices found\n");
 	else
 		Serial.println("done\n");
 	delay(200);// wait 0.2 seconds for next scan
@@ -61,7 +57,7 @@ void IOManager::setup() {
 	mcp2.begin_I2C(0x21);// Instantiate mcp2: objectaddress 1
 	if (!mcp2.begin_I2C(0x21)) {
 		Serial.println(" Error.mcp2 ");// if (!mcp2.begin_SPI(CS_PIN)) { --> if use a spi version
-		while (1)
+		for (;;)
 			;
 	}
 	Serial.print(" mcp2 Ok");
@@ -77,9 +73,7 @@ void IOManager::setup() {
 			Serial.print(input2[i]);
 		} else {
 			Serial.print(input2[i]);
-			if (i % 2 == 1) {
-				Serial.print(" ");
-			}
+			if (i % 2 == 1) { Serial.print(" "); }
 			if (i == 3 || i == 7 || i == 11) {
 				Serial.print("  ");
 			}
@@ -94,7 +88,7 @@ void IOManager::setup() {
 	mcp1.begin_I2C(0x20);// Instantiate mcp1: objectaddress 0
 	if (!mcp1.begin_I2C()) {
 		Serial.println(" Error.mcp1 ");// if (!mcp1.begin_SPI(CS_PIN)) { --> if use a spi version
-		while (1)
+		for (;;)
 			;
 	}
 	Serial.print(" mcp1 Ok");
@@ -110,32 +104,25 @@ void IOManager::setup() {
 }
 
 void IOManager::loop() {
-
-	if (timing >= 0) {
-		if ((millis() - pulseStop) >= pulseTime) {
-			setLEDState(timing, false, topic_sub, "0");
-			return;
+	if (m_timing >= 0) {
+		if ((millis() - m_pulseStop) >= pulseTime) {
+			setLEDState(m_timing, false);
 		}
 	}
 }
 
-void IOManager::attachMqttManager(MqttManager *mngr) {
-	mqttManager = mngr;
-}
-
-void IOManager::setLEDState(int8_t Id, bool on, String topic_sub, String Payload_sub) {
-
-	if (on) {// digitalWrite(Id, LOW);// relais on, then off
-		timing = Id;
-		pulseStop = millis();
-		mcp1.digitalWrite(Id, LOW);// Relais on     LOW
+void IOManager::setLEDState(const int8_t iId, const bool iOn) {
+	if (iOn) {
+		m_timing = iId;
+		m_pulseStop = millis();
+		mcp1.digitalWrite(iId, LOW);// Relais on     LOW
 		Serial.print("   -->  mcp1 on  for Id: ");
-		Serial.println(Id);
+		Serial.println(iId);
 	} else {
-		timing = -1;
-		mcp1.digitalWrite(Id, HIGH);// Relais off    HIGH
+		m_timing = -1;
+		mcp1.digitalWrite(iId, HIGH);// Relais off    HIGH
 		Serial.print("   -->  mcp1 off for Id: ");
-		Serial.println(Id);
+		Serial.println(iId);
 		delay(5);
 
 		byte input2[16];
@@ -146,34 +133,27 @@ void IOManager::setLEDState(int8_t Id, bool on, String topic_sub, String Payload
 				Serial.print(input2[i]);
 			} else {
 				Serial.print(input2[i]);
-				if (i % 2 == 1) {
-					Serial.print(" ");
-				}
-				if (i == 3 || i == 7 || i == 11) {
-					Serial.print("  ");
-				}
+				if (i % 2 == 1) { Serial.print(" "); }
+				if (i == 3 || i == 7 || i == 11) { Serial.print("  "); }
 			}
 			delay(5);
 		}
 		Serial.print("  -->  Check position Aig for id ");
-		Serial.println(Id);
-		const byte PosBobine[] = {11, 12, 21, 22, 31, 32, 33, 34, 41, 42, 51, 52, 61, 62, 63, 64};
-		String topic_sub;
-		String Payload_sub;
-		topic_sub = "Aig/Pos";
-		Payload_sub = PosBobine[Id];
+		Serial.println(iId);
+		std::string payload;
+		payload = PosBobine[iId];
 		Serial.print("Payload_sub: ");
-		Serial.print(Payload_sub);
+		Serial.print(payload.c_str());
 
-		if (input2[Id] == 1) {
+		if (input2[iId] == 1) {
 			Serial.print(" topic: ");
-			Serial.print(topic_sub);
+			Serial.print(m_topic.c_str());
 			Serial.print(" mess_sub: ");
-			Serial.println(Payload_sub);
-			mqttManager->senMessage(topic_sub, Payload_sub);
+			Serial.println(payload.c_str());
+			MqttManager::get().senMessage(m_topic, payload);
 		} else {
 			Serial.print(" wrong etat Aig: ");
-			Serial.println(input2[Id]);
+			Serial.println(input2[iId]);
 		}
 	}
 }

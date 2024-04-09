@@ -7,29 +7,22 @@
 static bool looping = true;
 #endif
 
+#include "IOManager.h"
 #include "WifiManager.h"
 #include "mqttManager.h"
-
-/// Manage the network.
-WifiManager netMngr;
-MqttManager mqttMngr;
-IOManager ioMngr;
-//unsigned long Timeloop = 0;
 
 void setup() {
 	Serial.begin(115200);
 	Serial.println("Starting");
-	netMngr.setup();
-	mqttMngr.setup();
-	ioMngr.setup();
-	mqttMngr.attachIOManager(&ioMngr);
-	ioMngr.attachMqttManager(&mqttMngr);
+	WifiManager::get().setup();
+	MqttManager::get().setup();
+	IOManager::get().setup();
 }
 
 void loop() {
-	netMngr.loop();
-	mqttMngr.loop();
-	ioMngr.loop();
+	WifiManager::get().loop();
+	MqttManager::get().loop();
+	IOManager::get().loop();
 }
 
 #ifndef ARDUINO

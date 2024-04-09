@@ -91,6 +91,16 @@ void MqttManager::connect() {
 			Serial.print("subscribed to ");
 			Serial.println(mqttTopicIn);
 			senMessage("TopicESP/Welcome", "hello");
+
+			 	/* f (InitAigPos != "") { 
+				String topic_pub;
+				String Payload_pub;
+				topic_pub = "Aig/Cde";
+				Payload_pub = "11";
+				senMessage(topic_pub, Payload_pub);
+				InitAigPos = "";
+				} */
+
 		} else {
 			Serial.print("failed, rc=");
 			Serial.print(mqttClient.state());
@@ -99,7 +109,7 @@ void MqttManager::connect() {
 			Serial.print(wifiClient.remoteIP().toString());
 			Serial.print(":");
 			Serial.println(wifiClient.remotePort());
-			delay(1000);
+			delay(100);
 		}
 	}
 }

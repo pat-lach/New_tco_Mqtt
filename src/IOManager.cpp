@@ -37,15 +37,15 @@ void IOManager::setup() {
 		if (error == 0) {
 			Serial.print("I2C device found at address 0x");
 			if (address < 16)
-				Serial.print("0");
+			 Serial.print("0");
 			Serial.print(address, HEX);
 			Serial.println("  !");
-			nDevices++;
+				nDevices++;
 		} else if (error == 4) {
-			Serial.print("Unknown error at address 0x");
-			if (address < 16)
-				Serial.print("0");
-			Serial.println(address, HEX);
+				Serial.print("Unknown error at address 0x");
+				if (address < 16)
+				 Serial.print("0");
+				Serial.println(address, HEX);
 		}
 	}
 	if (nDevices == 0)
@@ -53,39 +53,6 @@ void IOManager::setup() {
 	else
 		Serial.println("done\n");
 	delay(200);// wait 0.2 seconds for next scan
-
-	/********************************************************************/
-	//          Init mcp2 input
-	/********************************************************************/
-
-	mcp2.begin_I2C(0x21);// Instantiate mcp2: objectaddress 1
-	if (!mcp2.begin_I2C(0x21)) {
-		Serial.println(" Error.mcp2 ");// if (!mcp2.begin_SPI(CS_PIN)) { --> if use a spi version
-		while (1)
-			;
-	}
-	Serial.print(" mcp2 Ok");
-	for (int i = 0; i < 16; i++) {
-		mcp2.pinMode(i, INPUT_PULLUP);// init HIGH
-		delay(100);
-	}
-	byte input2[16];
-	Serial.print("  lecture position on mcp2 (setup):  ");
-	for (int i = 0; i < 16; i++) {
-		input2[i] = mcp2.digitalRead(i);
-		if (i == 15) {
-			Serial.print(input2[i]);
-		} else {
-			Serial.print(input2[i]);
-			if (i % 2 == 1) {
-				Serial.print(" ");
-			}
-			if (i == 3 || i == 7 || i == 11) {
-				Serial.print("  ");
-			}
-		}
-		delay(5);
-	}
 
 	/********************************************************************/
 	//          Init mcp1 output
@@ -107,73 +74,136 @@ void IOManager::setup() {
 	}
 	delay(100);
 	Serial.println();
-}
 
-void IOManager::loop() {
+	/********************************************************************/
+	//          Init mcp2 input & init position turnout
+	/********************************************************************/
 
-	if (timing >= 0) {
-		if ((millis() - pulseStop) >= pulseTime) {
-			setLEDState(timing, false, topic_sub, "0");
-			return;
-		}
+	mcp2.begin_I2C(0x21);// Instantiate mcp2: objectaddress 1
+	if (!mcp2.begin_I2C(0x21)) {
+		Serial.println(" Error.mcp2 ");// if (!mcp2.begin_SPI(CS_PIN)) { --> if use a spi version
+		while (1)
+			;
 	}
-}
+	Serial.print(" mcp2 Ok");
+	for (int i = 0; i < 16; i++) {
+		mcp2.pinMode(i, INPUT_PULLUP);// init HIGH
+		delay(100);
+	}
+	byte input2[16];
 
-void IOManager::attachMqttManager(MqttManager *mngr) {
-	mqttManager = mngr;
-}
-
-void IOManager::setLEDState(int8_t Id, bool on, String topic_sub, String Payload_sub) {
-
-	if (on) {// digitalWrite(Id, LOW);// relais on, then off
-		timing = Id;
-		pulseStop = millis();
-		mcp1.digitalWrite(Id, LOW);// Relais on     LOW
-		Serial.print("   -->  mcp1 on  for Id: ");
-		Serial.println(Id);
-	} else {
-		timing = -1;
-		mcp1.digitalWrite(Id, HIGH);// Relais off    HIGH
-		Serial.print("   -->  mcp1 off for Id: ");
-		Serial.println(Id);
-		delay(5);
-
-		byte input2[16];
-		Serial.print("  lecture position on mcp2:  ");
-		for (int i = 0; i < 16; i++) {
-			input2[i] = mcp2.digitalRead(i);
+	Serial.print("  lecture position on mcp2 (setup):  ");
+	for (int i = 0; i < 16; i++) {
+		input2[i] = mcp2.digitalRead(i);
+		
 			if (i == 15) {
 				Serial.print(input2[i]);
+				Serial.print (" i == 15");
 			} else {
 				Serial.print(input2[i]);
 				if (i % 2 == 1) {
 					Serial.print(" ");
+					if (input2[i] != Contact[i]) {    // int Contact[16] = { 1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0};
+					Serial.print(" (aig ko: ");
+					Serial.print( PosBobine[i]);
+					Serial.print(") ");
+					}
 				}
 				if (i == 3 || i == 7 || i == 11) {
 					Serial.print("  ");
 				}
 			}
 			delay(5);
+			
 		}
-		Serial.print("  -->  Check position Aig for id ");
-		Serial.println(Id);
-		const byte PosBobine[] = {11, 12, 21, 22, 31, 32, 33, 34, 41, 42, 51, 52, 61, 62, 63, 64};
-		String topic_sub;
-		String Payload_sub;
-		topic_sub = "Aig/Pos";
-		Payload_sub = PosBobine[Id];
-		Serial.print("Payload_sub: ");
-		Serial.print(Payload_sub);
+	Serial.println("");
+		/* 	Serial.print("  -->  Check position Aig for id ");
+							Serial.println(Id);
+							const byte PosBobine[] = {11, 12, 21, 22, 31, 32, 33, 34, 41, 42, 51, 52, 61, 62, 63, 64};
+							String topic_sub;
+							String Payload_sub;
+							topic_sub = "Aig/Pos";
+							Payload_sub = PosBobine[Id];
+							Serial.print("Payload_sub: ");
+							Serial.print(Payload_sub); 
+						
+						*/
+					/* f (InitAigPos != "") { 
+				String topic_pub;
+				String Payload_pub;
+				topic_pub = "Aig/Cde";
+				Payload_pub = "11";
+				senMessage(topic_pub, Payload_pub);
+				InitAigPos = "";
+				} */
+	
+}
+	void IOManager::loop() {
 
-		if (input2[Id] == 1) {
-			Serial.print(" topic: ");
-			Serial.print(topic_sub);
-			Serial.print(" mess_sub: ");
-			Serial.println(Payload_sub);
-			mqttManager->senMessage(topic_sub, Payload_sub);
-		} else {
-			Serial.print(" wrong etat Aig: ");
-			Serial.println(input2[Id]);
+		
+		if (timing >= 0) {
+			if ((millis() - pulseStop) >= pulseTime) {
+				setLEDState(timing, false, topic_sub, "0");
+				return;
+			}
 		}
 	}
-}
+
+	void IOManager::attachMqttManager(MqttManager * mngr) {
+		mqttManager = mngr;
+	}
+
+	void IOManager::setLEDState(int8_t Id, bool on, String topic_sub, String Payload_sub) {
+
+		if (on) {// digitalWrite(Id, LOW);// relais on, then off
+			timing = Id;
+			pulseStop = millis();
+			mcp1.digitalWrite(Id, LOW);// Relais on     LOW
+			Serial.print("   -->  mcp1 on  for Id: ");
+			Serial.println(Id);
+		} else {
+			timing = -1;
+			mcp1.digitalWrite(Id, HIGH);// Relais off    HIGH
+			Serial.print("   -->  mcp1 off for Id: ");
+			Serial.println(Id);
+			delay(5);
+
+			byte input2[16];
+			Serial.print("  lecture position on mcp2:  ");
+			for (int i = 0; i < 16; i++) {
+				input2[i] = mcp2.digitalRead(i);
+				if (i == 15) {
+					Serial.print(input2[i]);
+				} else {
+					Serial.print(input2[i]);
+					if (i % 2 == 1) {
+						Serial.print(" ");
+					}
+					if (i == 3 || i == 7 || i == 11) {
+						Serial.print("  ");
+					}
+				}
+				delay(5);
+			}
+			Serial.print("  -->  Check position Aig for id ");
+			Serial.println(Id);
+			//const byte PosBobine[] = {11, 12, 21, 22, 31, 32, 33, 34, 41, 42, 51, 52, 61, 62, 63, 64};
+			String topic_sub;
+			String Payload_sub;
+			topic_sub = "Aig/Pos";
+			Payload_sub = PosBobine[Id];
+			Serial.print("Payload_sub: ");
+			Serial.print(Payload_sub);
+
+			if (input2[Id] == 1) {
+				Serial.print(" topic: ");
+				Serial.print(topic_sub);
+				Serial.print(" mess_sub: ");
+				Serial.println(Payload_sub);
+				mqttManager->senMessage(topic_sub, Payload_sub);
+			} else {
+				Serial.print(" wrong etat Aig: ");
+				Serial.println(input2[Id]);
+			}
+		}
+	}

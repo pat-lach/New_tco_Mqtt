@@ -8,6 +8,8 @@ class MqttManager;
 /**
  * @brief class managing the IO.
  */
+
+
 class IOManager {
 public:
 	/**
@@ -26,14 +28,15 @@ public:
 	 * @brief Attach a messaging system
 	 * @param mngr The new messaging system
 	 */
-	void attachMqttManager(MqttManager *mngr = nullptr);
-	void senMessage(String topic, String Payload);
+	void attachMqttManager(MqttManager * mngr = nullptr);
+	// void senMessage(String topic, String Payload);
 
 	/**
 	 * @brief Defines the LED State.
 	 * @param on If the LED should be on.
 	 */
 	void setLEDState(int8_t Id, bool on, String topic_sub, String Payload_sub);
+	
 
 private:
 	/// The MqttManager
@@ -58,4 +61,8 @@ private:
 	EtatP MesEtats[16];
 	String topic_sub ="Aig/Pos";
 	String Payload = "0";
+	int Contact[16] = { 1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0};
+	const byte PosBobine[16] = {11, 12, 21, 22, 31, 32, 33, 34, 41, 42, 51, 52, 61, 62, 63, 64};	
+	String InitAigPos = "11";
+
 };

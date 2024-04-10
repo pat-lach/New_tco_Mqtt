@@ -6,15 +6,92 @@
 
 #include "IOManager.h"
 
-#include <TurnoutManager.h>
+#include <DevicesManager.h>
+#include <WifiManager.h>
+#include <sstream>
 
 //static const std::string mqttUser = "papa";
 //static const std::string mqttPassword = "papa";
-static const std::string mqttTopicIn = "Aig/Cde";// si Click sur Aig, demande de changement position  et Topic Pub " Aig/cde" mess un nombre
+static const std::string s_mqttEmergTopicIn = "train/emerge";
+static const std::string s_mqttTopicIn = "train/cmd";// si Click sur Aig, demande de changement position  et Topic Pub " Aig/cde" mess un nombre
 //static const std::string mqtt_server = "pat-lach-pil";  // name dockermqtt, http://192.168.1.32:1883  image eclipse-mosquitto:2.0.18
-static const IPAddress mqtt_server = {192, 168, 1, 32};//adress  ou est le brocker modif 14/02 adress Raspi
-constexpr uint16_t mqtt_server_port = 1883;
-constexpr uint8_t CdeBobine[] = {11, 12, 21, 22, 31, 32, 33, 34, 41, 42, 51, 52, 61, 62, 63, 64};
+static const IPAddress s_mqttServer = {192, 168, 1, 32};//adress  ou est le brocker modif 14/02 adress Raspi
+constexpr uint16_t s_mqttServerPort = 1883;
+constexpr uint8_t s_cmdBobine[] = {11, 12, 21, 22, 31, 32, 33, 34, 41, 42, 51, 52, 61, 62, 63, 64};
+
+static std::string buildTopic(const MessageType &iMType, const DeviceType &iDType, const uint16_t iDeviceId) {
+	std::string result = "train/";
+	switch (iMType) {
+		case MessageType::Debug:
+			result += "debug";
+			return result;
+		case MessageType::Emergency:
+			result += "emerg";
+			return result;
+		case MessageType::Command:
+			result += "cmd";
+			break;
+		case MessageType::State:
+			result += "state";
+			break;
+	}
+	switch (iDType) {
+		case DeviceType::General:
+			break;
+		case DeviceType::Aiguillage:
+			result += "/aig";
+			break;
+		case DeviceType::PositionSensor:
+			result += "/pos";
+			break;
+		case DeviceType::TraficLight:
+			result += "/feu";
+			break;
+	}
+	if (iDType != DeviceType::General)
+		result += "/" + std::to_string(iDeviceId);
+	return result;
+}
+
+static std::tuple<MessageType, DeviceType, uint16_t> decompTopic(const std::string &iTopic) {
+	auto mType = MessageType::Emergency;
+	auto dType = DeviceType::General;
+	uint16_t id = std::numeric_limits<uint16_t>::max();
+	std::vector<std::string> tokens;
+	{
+		std::stringstream ss(iTopic);
+		std::string token;
+		while (std::getline(ss, token, '/')) {
+			tokens.push_back(token);
+		}
+	}
+	if (tokens.size() < 2)
+		return {mType, dType, id};
+	if (tokens[0] != "train")
+		return {mType, dType, id};
+	if (tokens[1] == "debug")
+		mType = MessageType::Debug;
+	if (tokens[1] == "emerg")
+		mType = MessageType::Emergency;
+	if (tokens[1] == "cmd")
+		mType = MessageType::Command;
+	if (tokens[1] == "state")
+		mType = MessageType::State;
+	if (mType != MessageType::State && mType != MessageType::Command)
+		return {mType, dType, id};
+	if (tokens.size() < 4) {
+		mType = MessageType::Emergency;
+		return {mType, dType, id};
+	}
+	if (tokens[2] == "aig")
+		dType = DeviceType::Aiguillage;
+	if (tokens[2] == "pos")
+		dType = DeviceType::PositionSensor;
+	if (tokens[2] == "feu")
+		dType = DeviceType::TraficLight;
+	id = std::stoi(tokens[3]);
+	return {mType, dType, id};
+}
 
 /**
  * @brief Function called everytime a message is received from broker.
@@ -22,91 +99,73 @@ constexpr uint8_t CdeBobine[] = {11, 12, 21, 22, 31, 32, 33, 34, 41, 42, 51, 52,
  * @param iPayload The message received.
  * @param iLength The length of the message.
  */
-static void callback(const char *iTopic, const byte *iPayload, const uint32_t iLength) {
-	const String Topic(iTopic);
-	String Payload;
-	String topic_sub;
-	String Payload_sub;
-
-	Payload.reserve(iLength);
-	for (unsigned int i = 0; i < iLength; ++i) { Payload.concat(static_cast<char>(iPayload[i])); }
-	Serial.print("  Received message: ");
-	Serial.print(Topic);
-	Serial.print(" // '");
-	Serial.print(Payload);
-	Serial.println("'");
-	if (Topic == "Aig/Cmd/1") {
-		TurnoutManager::get().m_turnout[1].receiveMessage(Payload.c_str());
-		/// on attent un mmessage de la forme "<aig_id>;<state>;<pending>"
-		/*
-		 * oulà, j'ai pas bien compris ton décodage de payload je crains un bug!!
-		 *
-		 */
-		//if ((Topic == "Aig/Cde") || (Topic == "TopicESP/bp1")) {
-		int id = Payload.toInt();
-		Serial.print("  int id ");
-		Serial.println(id);
-		const byte CdeBobine[] = {11, 12, 21, 22, 31, 32, 33, 34, 41, 42, 51, 52, 61, 62, 63, 64};
-		for (int i = 0; i < 16; i++) {
-			if (CdeBobine[i] == id) {
-				id = i;
-				Serial.print("  new id for Output ");
-				Serial.println(id);
-			}
+static void onMessageReceived(const char *iTopic, const uint8_t *iPayload, const uint32_t iLength) {
+	const std::string topic(iTopic);
+	const std::string payload(iPayload, iPayload + iLength);
+	auto [mType, dType, id] = decompTopic(topic);
+	if (mType == MessageType::Emergency) {
+		// todo: treat emergency!!!
+	}
+	if (mType == MessageType::Command) {
+		// treat command !!
+		auto &devices = DevicesManager::get();
+		if (dType == DeviceType::Aiguillage) {
+			auto &turnout = devices.m_turnout[id];// todo: safe access to turnout by id...
+			turnout.receiveMessage(payload);
 		}
-		if (id >= 0 && id < 16) {
-			//if (Payload.equalsIgnoreCase("on"))
-			IOManager::get().setLEDState(static_cast<int8_t>(id), true);
-		} else if (Payload.equalsIgnoreCase("off")) {
-			// pas compris... que vaut 'id' si le payload vaut 'off' ???
-			IOManager::get().setLEDState(static_cast<int8_t>(id), false);
-		} else {
-			Serial.print(" Invalid Payload: ");
-			Serial.println(Payload);
+		// todo: treat other devices
+	}
+}
+
+
+MqttManager::MqttManager() : m_mqttClient(m_wifiClient) {}
+
+void MqttManager::setup() {
+	m_mqttClient.setServer(s_mqttServer, s_mqttServerPort);
+	m_mqttClient.setKeepAlive(5);
+	m_mqttClient.setCallback(onMessageReceived);
+}
+
+void MqttManager::loop() {
+	if (WifiManager::get().getStatus() != WifiManager::Status::Connected)
+		return;// nothing to do if no wifi.
+	if (!m_mqttClient.connected()) {
+		connect();
+	}
+	if (m_status == Status::Connected) {
+		if (!m_mqttClient.loop()) {
+			m_status = Status::NotConnected;
 		}
 	}
 }
 
-MqttManager::MqttManager() : mqttClient(wifiClient) {}
-
-void MqttManager::setup() {
-	mqttClient.setServer(mqtt_server, mqtt_server_port);
-	mqttClient.setKeepAlive(5);
-	mqttClient.setCallback(callback);
-}
-
-void MqttManager::loop() {
-	if (!mqttClient.connected()) { connect(); }
-	if (!mqttClient.loop()) {}
-}
-
 void MqttManager::connect() {
-	while (!mqttClient.connected()) {
+	if (!m_mqttClient.connected()) {
+		if (m_coolDown > millis())
+			return;
 		Serial.print("Attempting MQTT connection...");
-		std::string mqttClientId;
-		if (mqttClient.connect(mqttClientId.c_str())) {
+		if (m_mqttClient.connect("")) {
 			Serial.println("connected");
-			mqttClient.subscribe(mqttTopicIn.c_str());
-			Serial.print("subscribed to ");
-			Serial.println(mqttTopicIn.c_str());
-			sendMessage("TopicESP/Welcome", "hello");
+			m_mqttClient.subscribe(s_mqttTopicIn.c_str());
+			m_mqttClient.subscribe(s_mqttEmergTopicIn.c_str());
+			m_status = Status::Connected;
 		} else {
 			Serial.print("failed, rc=");
-			Serial.print(mqttClient.state());
+			Serial.print(m_mqttClient.state());
 			Serial.println(" will try again in 5 seconds");
 			Serial.print("remote ip");
-			Serial.print(wifiClient.remoteIP().toString());
+			Serial.print(m_wifiClient.remoteIP().toString());
 			Serial.print(":");
-			Serial.println(wifiClient.remotePort());
-			delay(1000);
+			Serial.println(m_wifiClient.remotePort());
+			m_status = Status::NotConnected;
+			m_coolDown = millis() + 2000u;
 		}
 	}
 }
 
 void MqttManager::sendMessage(const std::string &iTopic, const std::string &iPayload) {
-	Serial.print("  Sending Message: ");
-	Serial.print(iTopic.c_str());
-	Serial.print(" // ");
-	Serial.println(iPayload.c_str());
-	mqttClient.publish(iTopic.c_str(), iPayload.c_str());
+	m_mqttClient.publish(iTopic.c_str(), iPayload.c_str());
+}
+void MqttManager::send(const std::string &iMessage, const MessageType &iMType, const DeviceType &iDtype, const uint16_t iId) {
+	sendMessage(buildTopic(iMType, iDtype, iId), iMessage);
 }

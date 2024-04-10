@@ -7,8 +7,8 @@
 static bool looping = true;
 #endif
 
+#include "DevicesManager.h"
 #include "IOManager.h"
-#include "TurnoutManager.h"
 #include "WifiManager.h"
 #include "mqttManager.h"
 
@@ -20,20 +20,18 @@ void setup() {
 	IOManager::get().setup();
 }
 
-uint64_t last = 0;
 void loop() {
-	// Chronometre
-	uint64_t now = micros64();
-	const uint64_t delta = now - last;
-	std::swap(last, now);
 
 	// Get order from network
-	WifiManager::get().loop();
-	MqttManager::get().loop();
+	auto &wmgr = WifiManager::get();
+	auto &mqmgr = MqttManager::get();
+	wmgr.loop();
+	if (wmgr.getStatus() != WifiManager::Status::Connected)
+		mqmgr.loop();
 
 	// manage turnout
-	for (auto &[id, turn]: TurnoutManager::get().m_turnout) {
-		turn.loop(delta);
+	for (auto &[id, turn]: DevicesManager::get().m_turnout) {
+		turn.loop();
 	}
 
 	// manager remaining IO...

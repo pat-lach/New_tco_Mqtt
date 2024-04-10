@@ -19,10 +19,9 @@ IOManager::IOManager() = default;
 constexpr char PosBobine[] = {11, 12, 21, 22, 31, 32, 33, 34, 41, 42, 51, 52, 61, 62, 63, 64};
 
 void IOManager::setup() {
-	m_switchState = false;// all Switch off
 
+	m_status = State::NotInitiated;
 	Wire.begin(4, 5);// SDA d2 GPIO4, SCL d1 GPIO5, esp8266...Start I2C communication
-
 	/****************************************/
 	//          I2C Scanner
 	/********************************************************************/
@@ -45,9 +44,11 @@ void IOManager::setup() {
 			Serial.println(address, HEX);
 		}
 	}
-	if (nDevices == 0) Serial.println("No I2C devices found\n");
-	else
+	if (nDevices == 0) {
+		Serial.println("No I2C devices found\n");
+	} else {
 		Serial.println("done\n");
+	}
 	delay(200);// wait 0.2 seconds for next scan
 
 	/********************************************************************/
@@ -57,29 +58,14 @@ void IOManager::setup() {
 	mcp2.begin_I2C(0x21);// Instantiate mcp2: objectaddress 1
 	if (!mcp2.begin_I2C(0x21)) {
 		Serial.println(" Error.mcp2 ");// if (!mcp2.begin_SPI(CS_PIN)) { --> if use a spi version
-		for (;;)
-			;
+		return;
 	}
 	Serial.print(" mcp2 Ok");
 	for (int i = 0; i < 16; i++) {
 		mcp2.pinMode(i, INPUT_PULLUP);// init HIGH
 		delay(100);
 	}
-	byte input2[16];
-	Serial.print("  lecture position on mcp2 (setup):  ");
-	for (int i = 0; i < 16; i++) {
-		input2[i] = mcp2.digitalRead(i);
-		if (i == 15) {
-			Serial.print(input2[i]);
-		} else {
-			Serial.print(input2[i]);
-			if (i % 2 == 1) { Serial.print(" "); }
-			if (i == 3 || i == 7 || i == 11) {
-				Serial.print("  ");
-			}
-		}
-		delay(5);
-	}
+
 
 	/********************************************************************/
 	//          Init mcp1 output
@@ -88,16 +74,35 @@ void IOManager::setup() {
 	mcp1.begin_I2C(0x20);// Instantiate mcp1: objectaddress 0
 	if (!mcp1.begin_I2C()) {
 		Serial.println(" Error.mcp1 ");// if (!mcp1.begin_SPI(CS_PIN)) { --> if use a spi version
-		for (;;)
-			;
+		return;
 	}
 	Serial.print(" mcp1 Ok");
 	Serial.println("  setting mcp1 output High (setup) ");
 	for (int n = 0; n < 16; n++)// configure Port A: pins 0..7/ Port B: pins 8..15
 	{
 		mcp1.pinMode(n, OUTPUT);
-		delay(50);
-		mcp1.digitalWrite(n, HIGH);// all setting off
+		delay(5);
+	}
+
+	m_status = State::Initiated;
+
+	Serial.print("  lecture position on mcp2 (setup):  ");
+	for (uint8_t i = 0; i < 16; i++) {
+		const uint8_t input = readPin(MCP2_0 + i);
+		if (i == 15) {
+			Serial.print(input);
+		} else {
+			Serial.print(input);
+			if (i % 2 == 1) { Serial.print(" "); }
+			if (i == 3 || i == 7 || i == 11) {
+				Serial.print("  ");
+			}
+		}
+		delay(5);
+	}
+	for (int n = 0; n < 16; n++) {
+		writePin(MCP1_0 + n, HIGH);
+		delay(5);
 	}
 	delay(100);
 	Serial.println();
@@ -111,7 +116,26 @@ void IOManager::loop() {
 	}
 }
 
+uint8_t IOManager::readPin(const uint8_t iPin) const {
+	if (m_status != State::Initiated)
+		return 0;
+	if (iPin < MCP2_0 || iPin > MCP2_15)// out of reading scope
+		return 0;
+	const uint8_t pinId = iPin & 0xF;
+	return mcp2.digitalRead(pinId);
+}
+
+void IOManager::writePin(const uint8_t iPin, const uint8_t iValue) const {
+	if (m_status != State::Initiated)
+		return;
+	if (iPin < MCP1_0 || iPin > MCP1_15)// out of writting scope
+		return;
+	const uint8_t pinId = iPin & 0xF;
+	mcp1.digitalWrite(pinId, iValue);
+}
+
 void IOManager::setLEDState(const int8_t iId, const bool iOn) {
+	// todo: move that code in turnout!!
 	if (iOn) {
 		m_timing = iId;
 		m_pulseStop = millis();

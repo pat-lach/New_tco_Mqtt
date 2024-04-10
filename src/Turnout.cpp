@@ -8,12 +8,18 @@
 
 #include "Turnout.h"
 
+#include <DevicesManager.h>
 #include <IOManager.h>
-#include <TurnoutManager.h>
 #include <mqttManager.h>
 
 
-Turnout::Turnout(const Type &iType) : m_type{iType} {}
+Turnout::Turnout(const Type &iType,
+				 const uint8_t iCmdPin1, const uint8_t iRdPin1,
+				 const uint8_t iCmdPin2, const uint8_t iRdPin2) : m_type{iType},
+																  m_cmdPin1{iCmdPin1},
+																  m_cmdPin2{iCmdPin2},
+																  m_rdPin1{iRdPin1},
+																  m_rdPin2{iRdPin2} {}
 
 Turnout::~Turnout() = default;
 
@@ -50,33 +56,40 @@ void Turnout::cycleState() {
 }
 
 void Turnout::readState() {
+	const auto &iomgr = IOManager::get();
 	switch (m_type) {
 		case Type::Ytype:
-			// read pin (call IOManager)
-			m_state = State::Direct;
+			if (iomgr.readPin(m_rdPin1) == 0)
+				m_state = State::Left;
+			else
+				m_state = State::Right;
 			break;
 		case Type::TriState:
-			// read pin1
-			// read pin2
-			m_state = State::Left;
+			const std::pair pins = {iomgr.readPin(m_rdPin1), iomgr.readPin(m_rdPin2)};
+			if (pins.first == 1 && pins.second == 1)
+				m_state = State::Right;
+			else if (pins.first == 0 && pins.second == 0)
+				m_state = State::Left;
+			else if (pins.first == 0 && pins.second == 1)// to be adapted
+				m_state = State::Direct;
 			break;
 	}
 }
 
-void Turnout::loop(uint64_t delta) {
-
-	/// lecture de l'entrée (appel à IOManager)
+void Turnout::loop() {
+	// todo
+	// lecture de l'entrée (appel à IOManager)
 	//auto& iomng = IOManager::get();
 	//auto st = iomng.readInputState(m_id);
 
-	/// si lecture == consigne
-	/// est-ce qu'une commande est en attente? oui -> termine la commande ===> message MQTT
-	/// si lecture != consigne
-	/// est-ce qu'une commande est en attente? non -> lance la commande
+	// si lecture == consigne
+	// est-ce qu'une commande est en attente? oui -> termine la commande ===> message MQTT
+	// si lecture != consigne
+	// est-ce qu'une commande est en attente? non -> lance la commande
 }
 
 void Turnout::receiveMessage(const std::string &msg) {
-	auto &tmgr = TurnoutManager::get();
+	auto &tmgr = DevicesManager::get();
 	auto &mqmgr = MqttManager::get();
 	if (msg == "change") {
 		if (!tmgr.isReady()) {

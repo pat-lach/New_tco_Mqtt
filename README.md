@@ -55,6 +55,8 @@ Le serial monitor est là pour le debug.
 
 ## Utilisation
 
+Voir la description du [protocol de message](doc/protocolMessage.md) pour MQTT.
+
 ### Ecoute du changement d'état.
 
 Lors de la bascule d'état du port `D6`, un message devrait faire son apparition

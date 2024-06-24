@@ -5,6 +5,10 @@
 #include "IOManager.h"
 #include <PubSubClient.h>
 #include <WiFiClient.h>
+#include <iostream>
+#include <vector>
+#include <string>
+#include <sstream>
 
 class MqttManager {
 public:

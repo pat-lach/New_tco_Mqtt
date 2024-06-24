@@ -1,17 +1,20 @@
-// Created by damien on 08/10/23.
-// modified by patrick with assistance of damien 11/10/2023
-// modified by patrick MQTT via Rasberrypi p, 14/02/2024
+/* 
+ * Created by damien on 08/10/23.
+ * modified by patrick with assistance of damien 11/10/2023
+ * modified by patrick MQTT via Rasberrypi p 14/02/2024
+ * modified by patrick added new topic to synchonize all Web Client 13/9/2024
+*/
 
 #include "mqttManager.h"
-
-//static const String mqttUser = "papa";
-//static const String mqttPassword = "papa";
-static const String mqttTopicIn = "Aig/Cde";     // si Click sur Aig, demande de changement position  et Topic Pub " Aig/cde" mess un nombre
-//static const String mqtt_server = "pat-lach-pil";  // name dockermqtt, http://192.168.1.32:1883  image eclipse-mosquitto:2.0.18
-static const IPAddress mqtt_server = {192, 168, 1, 32};//adress  ou est le brocker modif 14/02 adress Raspi
+/*
+ * static const String mqttUser = "papa";
+ * static const String mqttPassword = "papa";
+ * static const String mqtt_server = "pat-lach-pil";  // name dockermqtt, http://192.168.1.32:1883  image eclipse-mosquitto:2.0.18
+*/
+static const String mqttTopicIn = "train/#";   // si Click sur Aig, demande de changement position  et Topic Pub " Aig/cde" mess un nombre
+static const IPAddress mqtt_server = {192, 168, 1, 32};  //adress  ou est le brocker modif 14/02 adress Raspi
 constexpr uint16_t mqtt_server_port = 1883;
-
-static IOManager *s_ioManager = nullptr;
+static IOManager *s_ioManager = nullptr;  // Pointeur statique vers une instance de IOManager
 
 /**
  * @brief Function called everytime a message is received from broker.
@@ -19,68 +22,101 @@ static IOManager *s_ioManager = nullptr;
  * @param payload The message received.
  * @param length The length of the message.
  */
-static void callback(char *topic, byte *payload, unsigned int length) {
-	String Topic(topic);
-	String Payload;
-	String topic_sub;
-	String Payload_sub;
 
-	Payload.reserve(length);
-	for (unsigned int i = 0; i < length; ++i) {
-		Payload.concat((char) payload[i]);
-	}
-	Serial.print("  Received message: ");
-	Serial.print(Topic);
-	Serial.print(" // '");
-	Serial.print(Payload);
-	Serial.println("'");
-	if (Topic == "Aig/Cde")  {     //if ((Topic == "Aig/Cde") || (Topic == "TopicESP/bp1")) {		
-		int id = Payload.toInt();
-		Serial.print("  int id ");
-		Serial.println(id);		
-			const byte CdeBobine[] = {11,12,21,22,31,32,33,34,41,42,51,52,61,62,63,64};
-			for (int i=0; i<16;i++)
-			{ if (CdeBobine[i] == id) 	{ 
-				id = i;
-				Serial.print("  new id for Output ");
-				Serial.println(id);	
-				}
-			}
-		if ( id >= 0 && id < 16){
-		//if (Payload.equalsIgnoreCase("on")) 
-		
-		if (s_ioManager) {
-			s_ioManager->setLEDState(id, true, topic_sub, Payload_sub);
-		}
-		 } else if (Payload.equalsIgnoreCase("off")) {
-		 	if (s_ioManager) {
-		 		s_ioManager->setLEDState(id, false, topic_sub, Payload_sub);
-				
-		 	}
-		 } else {
-		 	Serial.print(" Invalid Payload: ");
-		 	Serial.println(Payload);
-		 }
-	}
+// Fonction pour diviser une chaîne en utilisant un séparateur
+std::vector<std::string> split(const std::string& s, char delimiter) {
+    std::vector<std::string> tokens;
+    std::string token;
+    std::istringstream tokenStream(s);
+    while (std::getline(tokenStream, token, delimiter)) {
+        tokens.push_back(token);
+    }
+    return tokens;
 }
 
-MqttManager::MqttManager() : mqttClient(wifiClient) {}
+
+static void callback(char *topic, byte *payload, unsigned int length) {
+	String Topic(topic); // Conversion des paramètres en String pour une manipulation plus facile
+	String Payload;
+	String topic_sub;
+	String Bobine_id;
+    
+	String Payload_sub;
+	Payload.reserve(length); // Conversion du payload de byte en String
+
+	for (unsigned int i = 0; i < length; ++i) {
+		Payload.concat((char) payload[i]);
+		}
+	Payload_sub = Payload;
+
+	// Séparer le payload en utilisant "/" comme séparateur
+    std::vector<std::string> parts = split(Payload.c_str(), '/' );
+
+	// message: app + "/" + aig_id + "/" + client_id;
+    if (parts.size() == 3) {
+        String app = parts[0].c_str();
+        String aig_id = parts[1].c_str();
+        String client_id = parts[2].c_str();
+
+	  // Affichage du message reçu sur le port série
+		Serial.print(" Callback > Received message: ");
+		Serial.print(Topic);
+		Serial.print(" > ");
+		Serial.print(Payload);
+		Serial.print(" ");
+
+    } else {
+        Serial.print(" callback > Simple payload: ");
+		Serial.print(Payload);
+		Serial.println("");
+    }
+
+	if (Topic == "train/cmd/aig") { 
+		int app = Payload.toInt();  // Conversion du payload en entier
+		int Bobine_id =16;
+		Serial.print(" Callback > train/cmd/aig > ");
+		Serial.print(app);
+		const byte CdeBobine[] = {11, 12, 21, 22, 31, 32, 33, 34, 41, 42, 51, 52, 61, 62, 63, 64};
+		for (int i = 0; i < 16; i++) {   
+			if (CdeBobine[i] == app) {       // Recherche de cmdAig_ID dans le tableau de commandes
+				Bobine_id = i;               //  bobine à piloter 
+				Serial.print("  Bobine id ");
+				Serial.println(Bobine_id);
+			}
+		}  
+		// Vérification de la validité du numéro de sortie et activation du relais correspondant
+		if (Bobine_id >= 0 && Bobine_id < 16) { 	//if (Payload.equalsIgnoreCase("on"))
+			if (s_ioManager) {
+				s_ioManager->setLEDState(Bobine_id, true, topic_sub, Payload_sub);
+			}
+		} else if (Payload.equalsIgnoreCase("off")) {
+			if (s_ioManager) {
+				s_ioManager->setLEDState(Bobine_id, false, topic_sub, Payload_sub);
+			}
+		} else {
+			Serial.print(" Invalid Payload: ");
+			Serial.println(Payload);
+		}
+	}
+} 
+
+MqttManager::MqttManager() : mqttClient(wifiClient) {} // Constructeur de MqttManager
 
 void MqttManager::setup() {
-	mqttClient.setServer(mqtt_server, mqtt_server_port);
-	mqttClient.setKeepAlive(5);
-	mqttClient.setCallback(callback);
+	mqttClient.setServer(mqtt_server, mqtt_server_port); // Configuration du serveur MQTT
+	mqttClient.setKeepAlive(5); // Définition de l'intervalle de keep-alive à 5 secondes
+	mqttClient.setCallback(callback); // Définition de la fonction de rappel
 }
 
 void MqttManager::loop() {
-	if (!mqttClient.connected()) {
-		connect();
+	if (!mqttClient.connected()) {  // Vérification de la connexion au serveur MQTT
+		connect();					// Connexion au serveur MQTT si déconnecté
 	}
-	if (!mqttClient.loop()) {
+	if (!mqttClient.loop()) {		 // Gestion d'erreur si nécessaire
 	}
 }
 
-void MqttManager::connect() {
+void MqttManager::connect() {  		// connexion au serveur MQTT
 
 	while (!mqttClient.connected()) {
 		Serial.print("Attempting MQTT connection...");
@@ -90,16 +126,7 @@ void MqttManager::connect() {
 			mqttClient.subscribe(mqttTopicIn.c_str());
 			Serial.print("subscribed to ");
 			Serial.println(mqttTopicIn);
-			senMessage("TopicESP/Welcome", "hello");
-
-			 	/* f (InitAigPos != "") { 
-				String topic_pub;
-				String Payload_pub;
-				topic_pub = "Aig/Cde";
-				Payload_pub = "11";
-				senMessage(topic_pub, Payload_pub);
-				InitAigPos = "";
-				} */
+			senMessage("train/setup", "hello");
 
 		} else {
 			Serial.print("failed, rc=");
@@ -115,14 +142,14 @@ void MqttManager::connect() {
 }
 
 void MqttManager::senMessage(String topic, String Payload) {
-	Serial.print("  Sending Message: ");
+	Serial.print(" MqttManager ->  Sending Message: ");
 	Serial.print(topic);
-	Serial.print(" // ");
+	Serial.print(" Payload > ");
 	Serial.println(Payload);
-	mqttClient.publish(topic.c_str(), Payload.c_str());
+	mqttClient.publish(topic.c_str(), Payload.c_str()); // Publication du message sur le topic
 }
 
 void MqttManager::attachIOManager(IOManager *mngr) {
 	ioManager = mngr;
-	s_ioManager = mngr;
+	s_ioManager = mngr; // Mise à jour du pointeur statique
 }
